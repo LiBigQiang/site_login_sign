@@ -1,66 +1,49 @@
+from login_sign_base import LoginSign
 import time
-from webbase import WebBase
 from logging_sign import logging
 from lxml import etree
 
 
-class MyDigit(WebBase):
-    def __init__(self, username='', password='', encoding='utf8'):
-        WebBase.__init__(self)
-        self.username = username
-        self.password = password
-        self.encoding = encoding
+class Mydigit(LoginSign):
+    def __init__(self, username, password, encoding):
+        LoginSign.__init__(self, username, password, encoding)
 
     def get_verif(self):
-        page = self.opener.open("http://bbs.mydigit.cn/index.php").read().decode(self.encoding)
-        selector = etree.HTML(page)
-        time.sleep(0.5)
+        r = self.session.get("http://bbs.mydigit.cn/index.php")
+        selector = etree.HTML(r.text)
+        time.sleep(1)
         return selector.xpath("//input[@name='verify']/@value")[0]
 
-    def data_generator(self, action):
+    def url_gen(self, action):
         if action == 'login':
-            data = {
-                'login': {"jumpurl": "http://bbs.mydigit.cn/index.php", "step": "2", "ajax": "1", "lgt": "2",
-                          "pwuser": self.username,
-                          "pwpwd": self.password}
-            }
-            self.data.update(data)
+            return 'http://bbs.mydigit.cn/login.php'
         if action == 'sign':
-            data = {
-                'sign': {"step": "2"}
-            }
-            self.data.update(data)
+            return 'http://bbs.mydigit.cn/jobcenter.php'
 
-    def url_generator(self, action):
+    def data_gen(self, action):
+        return {"jumpurl": "http://bbs.mydigit.cn/index.php", "step": "2", "ajax": "1", "lgt": "2",
+                "pwuser": self.username, "pwpwd": self.password} if action == 'login' else {"step": "2"}
+
+    def head_gen(self, action):
+        return {'Host': 'bbs.mydigit.cn'}
+
+    def params_gen(self, action):
+        date = str(time.time() + 2).replace('.', '')[:13]
         if action == 'login':
-            nowtime = str(time.time()).replace('.', '')[:13]
-            verify = self.get_verif()
-            url_login = 'http://bbs.mydigit.cn/login.php?nowtime=[]&verify=[]'.format(nowtime, verify)
-            self.url.update({'login': url_login})
+            return {'nowtime': date, 'verify': self.get_verif()}
         if action == 'sign':
-            nowtime = str(time.time()).replace('.', '')[:13]
-            verify = self.get_verif()
-            url_sign = 'http://bbs.mydigit.cn/jobcenter.php?action=punch&verify=[]&nowtime=[]'.format(verify, nowtime)
-            self.url.update({'sign': url_sign})
-
-    def head_generator(self):
-        head = {
-            'Host': 'bbs.mydigit.cn',
-        }
-        return head
+            return {'action': 'punch', 'verify': self.get_verif(), 'nowtime': date}
 
 
 @logging
 def main():
-    username = "username"  # 邮箱(用户名登录需修改post内容)
-    password = "password"  # 密码
-    encoding = 'gbk'
-    instance = MyDigit(username=username, password=password, encoding=encoding)
-    if 'success' in instance.do('login'):
-        time.sleep(0.5)
-        print(1)
-        if 'M币' in instance.do('sign'):
-            print(instance.now_time + '签到成功')
+    m = Mydigit('1518598569@qq.com', 'Lqmy986156', 'gbk')
+    m.do('login')
+    if m.check('success'):
+        time.sleep(2)
+        m.do('sign')
+        if m.check('M币'):
+            m.log_success()
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
